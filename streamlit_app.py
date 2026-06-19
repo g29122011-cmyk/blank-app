@@ -4,7 +4,7 @@ import random
 from datetime import date, timedelta
 
 st.set_page_config(
-    page_title="Мониторинг критичных кейсов",
+    page_title="Мониторинг проблемного НДС",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -228,8 +228,8 @@ def style_registry(df: pd.DataFrame):
 # =========================================================
 # ЗАГОЛОВОК
 # =========================================================
-st.title("Мониторинг критичных кейсов")
-st.caption("Демонстрационный executive dashboard для анализа кейсов, рисков и нагрузки команды")
+st.title("Мониторинг проблемного НДС")
+st.caption("Executive dashboard для анализа проблемного НДС")
 
 # =========================================================
 # SIDEBAR
