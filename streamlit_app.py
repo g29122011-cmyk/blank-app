@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import random
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import date, timedelta
 
 
@@ -240,35 +241,69 @@ def build_vat_debt_bar(df: pd.DataFrame):
     if df.empty:
         return None
 
-    company_debt = (
-        df.groupby("Компания", as_index=False)
+    company_reason_debt = (
+        df.groupby(["Компания", "Причина"], as_index=False)
         .agg(Сумма_НДС=("Сумма НДС. млн.руб.", "sum"))
+    )
+
+    company_order = (
+        company_reason_debt.groupby("Компания", as_index=False)["Сумма_НДС"]
+        .sum()
+        .sort_values("Сумма_НДС", ascending=True)["Компания"]
+        .tolist()
+    )
+
+    totals = (
+        company_reason_debt.groupby("Компания", as_index=False)["Сумма_НДС"]
+        .sum()
         .sort_values("Сумма_НДС", ascending=True)
     )
 
-    chart_height = max(420, len(company_debt) * 42)
+    chart_height = max(480, len(company_order) * 44)
+
+    color_map = {
+        "Расхождение по НДС": "#175CD3",
+        "Запрос дополнительных документов": "#36B37E",
+        "Подозрительная цепочка контрагентов": "#F79009",
+        "Нагрузка на оборотный контур": "#7A5AF8",
+        "Риск налоговой претензии": "#F04438",
+        "Несоответствие периода учета": "#12B76A",
+    }
 
     fig = px.bar(
-        company_debt,
+        company_reason_debt,
         x="Сумма_НДС",
         y="Компания",
+        color="Причина",
         orientation="h",
-        text="Сумма_НДС",
-        title="Задолженность по НДС по предприятиям"
+        category_orders={"Компания": company_order},
+        title="Задолженность по НДС по предприятиям",
+        color_discrete_map=color_map
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=totals["Сумма_НДС"],
+            y=totals["Компания"],
+            mode="text",
+            text=[f"{v:,.1f}" for v in totals["Сумма_НДС"]],
+            textposition="middle right",
+            showlegend=False,
+            hoverinfo="skip"
+        )
     )
 
     fig.update_traces(
-        texttemplate="%{text:.1f}",
-        textposition="outside",
-        marker_color="#175CD3",
-        hovertemplate="<b>%{y}</b><br>Сумма НДС: %{x:.1f} млн руб.<extra></extra>"
+        hovertemplate="<b>%{y}</b><br>Причина: %{fullData.name}<br>Сумма НДС: %{x:.1f} млн руб.<extra></extra>"
     )
 
     fig.update_layout(
+        barmode="stack",
         height=chart_height,
-        margin=dict(l=20, r=40, t=60, b=20),
+        margin=dict(l=20, r=90, t=60, b=20),
         xaxis_title="Сумма задолженности НДС, млн руб.",
         yaxis_title="Предприятие",
+        legend_title="Причина",
         plot_bgcolor="white",
         paper_bgcolor="white"
     )
@@ -563,7 +598,7 @@ with tab1:
                 .groupby(filtered_data["Дата"].dt.date, as_index=False)
                 .agg(Сумма_НДС=("Сумма НДС. млн.руб.", "sum"))
             )
-            st.line_chart(current_daily.set_index("Дата")["Сумма_НДС"])
+            st.line_chart(current_daily.set_index("Дата")["Сумма_НДС"], width="stretch")
         else:
             st.info("Нет данных для графика.")
 
@@ -590,7 +625,7 @@ with tab1:
     debt_fig = build_vat_debt_bar(filtered_data)
 
     if debt_fig is not None:
-        st.plotly_chart(debt_fig, use_container_width=True)
+        st.plotly_chart(debt_fig, width="stretch")
     else:
         st.info("Нет данных для построения графика по предприятиям.")
 
@@ -667,7 +702,7 @@ with tab3:
 
         with left:
             st.markdown("#### Сумма по статусам")
-            st.bar_chart(status_summary.set_index("Статус")["Сумма_НДС"])
+            st.bar_chart(status_summary.set_index("Статус")["Сумма_НДС"], width="stretch")
 
         with right:
             st.markdown("#### Таблица статусов")
@@ -704,7 +739,7 @@ with tab4:
 
         with t1:
             st.markdown("#### Инциденты по ответственным")
-            st.bar_chart(resp_summary.set_index("Ответственный")["Количество_кейсов"])
+            st.bar_chart(resp_summary.set_index("Ответственный")["Количество_кейсов"], width="stretch")
 
         with t2:
             st.markdown("#### Детализация по команде")
