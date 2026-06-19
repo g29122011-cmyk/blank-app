@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
 import random
+import plotly.express as px
 from datetime import date, timedelta
+
 
 st.set_page_config(
     page_title="Мониторинг проблемного НДС",
@@ -9,6 +11,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
 
 # =========================================================
 # CSS
@@ -103,6 +106,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
 # =========================================================
 # ТЕСТОВЫЕ ДАННЫЕ
 # =========================================================
@@ -184,8 +188,10 @@ def create_demo_data():
 
     return pd.DataFrame(rows)
 
+
 data = create_demo_data()
 data["Дата"] = pd.to_datetime(data["Дата"])
+
 
 # =========================================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -193,13 +199,16 @@ data["Дата"] = pd.to_datetime(data["Дата"])
 def to_csv_download(df: pd.DataFrame) -> bytes:
     return df.to_csv(index=False).encode("utf-8-sig")
 
+
 def fmt_mln(x):
     return f"{x:,.1f}"
+
 
 def fmt_delta_abs(curr, prev):
     diff = curr - prev
     sign = "+" if diff >= 0 else ""
     return f"{sign}{diff:,.1f}"
+
 
 def status_cell_style(val):
     if pd.isna(val):
@@ -218,6 +227,7 @@ def status_cell_style(val):
         return "background-color: #F2F4F7; color: #344054; font-weight: 600;"
     return "background-color: #F2F4F7; color: #344054;"
 
+
 def style_registry(df: pd.DataFrame):
     return (
         df.style
@@ -225,11 +235,56 @@ def style_registry(df: pd.DataFrame):
         .map(status_cell_style, subset=["Статус"])
     )
 
+
+def build_vat_debt_bar(df: pd.DataFrame):
+    if df.empty:
+        return None
+
+    company_debt = (
+        df.groupby("Компания", as_index=False)
+        .agg(Сумма_НДС=("Сумма НДС. млн.руб.", "sum"))
+        .sort_values("Сумма_НДС", ascending=True)
+    )
+
+    chart_height = max(420, len(company_debt) * 42)
+
+    fig = px.bar(
+        company_debt,
+        x="Сумма_НДС",
+        y="Компания",
+        orientation="h",
+        text="Сумма_НДС",
+        title="Задолженность по НДС по предприятиям"
+    )
+
+    fig.update_traces(
+        texttemplate="%{text:.1f}",
+        textposition="outside",
+        marker_color="#175CD3",
+        hovertemplate="<b>%{y}</b><br>Сумма НДС: %{x:.1f} млн руб.<extra></extra>"
+    )
+
+    fig.update_layout(
+        height=chart_height,
+        margin=dict(l=20, r=40, t=60, b=20),
+        xaxis_title="Сумма задолженности НДС, млн руб.",
+        yaxis_title="Предприятие",
+        plot_bgcolor="white",
+        paper_bgcolor="white"
+    )
+
+    fig.update_xaxes(showgrid=True, gridcolor="#EAECF0", zeroline=False)
+    fig.update_yaxes(showgrid=False)
+
+    return fig
+
+
 # =========================================================
 # ЗАГОЛОВОК
 # =========================================================
 st.title("Мониторинг проблемного НДС")
 st.caption("Executive dashboard для анализа проблемного НДС")
+
 
 # =========================================================
 # SIDEBAR
@@ -285,6 +340,7 @@ with st.sidebar:
         default=responsible_options
     )
 
+
 # =========================================================
 # ТЕКУЩИЙ ПЕРИОД
 # =========================================================
@@ -302,6 +358,7 @@ if selected_responsibles:
     filtered_data = filtered_data[filtered_data["Ответственный"].isin(selected_responsibles)]
 else:
     filtered_data = filtered_data.iloc[0:0]
+
 
 # =========================================================
 # ПРЕДЫДУЩИЙ ПЕРИОД
@@ -323,6 +380,7 @@ if selected_statuses:
 
 if selected_responsibles:
     previous_data = previous_data[previous_data["Ответственный"].isin(selected_responsibles)]
+
 
 # =========================================================
 # HEADER ACTIONS
@@ -346,6 +404,7 @@ with top3:
 
 if filtered_data.empty:
     st.warning("По выбранным фильтрам данные не найдены.")
+
 
 # =========================================================
 # KPI
@@ -429,6 +488,7 @@ k7.metric(
     delta_color="inverse"
 )
 
+
 # =========================================================
 # SUMMARY CARDS
 # =========================================================
@@ -474,6 +534,7 @@ with sum3:
     </div>
     """, unsafe_allow_html=True)
 
+
 # =========================================================
 # ВКЛАДКИ
 # =========================================================
@@ -485,13 +546,14 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Реестр"
 ])
 
+
 # =========================================================
 # TAB 1 — СВОДКА
 # =========================================================
 with tab1:
     st.subheader("Сводная картина")
 
-    col_left, col_right = st.columns([1.5, 1])
+    col_left, col_right = st.columns([1.35, 1])
 
     with col_left:
         st.markdown("#### Динамика суммы по дням")
@@ -523,6 +585,15 @@ with tab1:
             ]
         })
         st.dataframe(compare_table, width="stretch", hide_index=True)
+
+    st.markdown("#### Задолженность по НДС по предприятиям")
+    debt_fig = build_vat_debt_bar(filtered_data)
+
+    if debt_fig is not None:
+        st.plotly_chart(debt_fig, use_container_width=True)
+    else:
+        st.info("Нет данных для построения графика по предприятиям.")
+
 
 # =========================================================
 # TAB 2 — РИСКИ
@@ -572,6 +643,7 @@ with tab2:
                 hide_index=True
             )
 
+
 # =========================================================
 # TAB 3 — СТАТУСЫ
 # =========================================================
@@ -608,6 +680,7 @@ with tab3:
                 hide_index=True
             )
 
+
 # =========================================================
 # TAB 4 — ОТВЕТСТВЕННЫЕ
 # =========================================================
@@ -643,6 +716,7 @@ with tab4:
                 width="stretch",
                 hide_index=True
             )
+
 
 # =========================================================
 # TAB 5 — РЕЕСТР
